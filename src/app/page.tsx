@@ -1,103 +1,142 @@
-import Image from "next/image";
+'use client'
+import { useState } from "react";
+import TodoInput from "../components/TodoInput";
+// Update the path below to the correct relative path where TodoItem and Todo are exported
+import TodoItem, { type Todo } from "../components/TodoItem";
+import TodoStats from "../components/TodoStats";
+import { getCategoryFromGPT } from "../api/categorize";
+
+export type Category = {
+    name: string;
+    selected: boolean;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    const [todos, setTodos] = useState<Todo[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    // Where the todo item is added
+    const addTodo = (text: string) => {
+
+        const newTodo: Todo = {
+            id: crypto.randomUUID(),
+            text,
+            completed: false,
+            createdAt: new Date(),
+            category: null,
+        };
+
+        setTodos(prev => [newTodo, ...prev]);
+
+        categorizeTodo(newTodo);
+    };
+
+    const categorizeTodo = async (todo: Todo) => {
+        try {
+            const category_name = await getCategoryFromGPT(todo.text);
+            const category = { name: category_name, selected: false };
+
+            setCategories(prev => [...prev, category]);
+            setTodos(prev => [...prev, { ...todo, category: category_name }]);
+        } catch (err) {
+            console.error("Failed to categorize:", err);
+            // Optionally set a 'failed' or 'uncategorized' label
+        }
+    };
+
+    const toggleTodo = (id: string) => {
+        setTodos(prev =>
+            prev.map(todo =>
+                todo.id === id ? { ...todo, completed: !todo.completed } : todo
+            )
+        );
+    };
+
+    const deleteTodo = (id: string) => {
+        setTodos(prev => prev.filter(todo => todo.id !== id));
+    };
+
+    const reorderTodos = (dragIndex: number, hoverIndex: number) => {
+        setTodos(prev => {
+            const incompleteTodos = prev.filter(todo => !todo.completed);
+            const completedTodos = prev.filter(todo => todo.completed);
+
+            // Only allow reordering within incomplete todos
+            if (dragIndex >= incompleteTodos.length || hoverIndex >= incompleteTodos.length) {
+                return prev;
+            }
+
+            const result = [...incompleteTodos];
+            const [removed] = result.splice(dragIndex, 1);
+            result.splice(hoverIndex, 0, removed);
+
+            return [...result, ...completedTodos];
+        });
+    };
+
+    // Sort todos: incomplete first, completed last
+    const sortedTodos = [...todos].sort((a, b) => {
+        if (a.completed && !b.completed) return 1;
+        if (!a.completed && b.completed) return -1;
+        return 0;
+    });
+
+    // Returns the filtered categories based on selected state
+    const selectedCategoryNames = categories
+        .filter((cat) => cat.selected)
+        .map((cat) => cat.name);
+
+    // Returns the todos that match the selected categories
+    const visibleTodos = selectedCategoryNames.length > 0 ? sortedTodos.filter((todo) => selectedCategoryNames.includes(todo.category || "")) : sortedTodos;
+
+    function changeSelectedCategory(name: string): void {
+        setCategories(prev =>
+            prev.map(category =>
+                category.name === name ? { ...category, selected: !category.selected } : category
+            )
+        );
+    }
+
+    return (
+        <div className="min-h-screen">
+            <div className="container max-w-2xl mx-auto py-8 px-4">
+                <div className="text-center mb-8">
+                    <h1 className="text-5xl font-bold text-white mb-8">Todo List</h1>
+                    <p className="text-lg">
+                        Stay organized and get things done
+                    </p>
+                </div>
+
+                <div className="space-y-4">
+                    <TodoInput onAdd={addTodo} />
+
+                    <TodoStats todos={todos} />
+
+                    {categories.length > 0 && (
+                        <div className="text-sm mb-4">
+                            {categories.map(category => (
+                                <button key={category.name} className="text-sm" onClick={() => changeSelectedCategory(category.name)}>
+                                    {category.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        {visibleTodos.map((todo, index) => (
+                            <TodoItem
+                                key={todo.id}
+                                todo={todo}
+                                index={index}
+                                onToggle={toggleTodo}
+                                onDelete={deleteTodo}
+                                onReorder={reorderTodos}
+                                isDraggable={!todo.completed}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
-}
+    );
+};
