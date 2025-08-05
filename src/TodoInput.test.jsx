@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom'; // only for matchers like toBeInTheDocument
-import { test, expect } from 'vitest'; // ✅ This is essential
+import '@testing-library/jest-dom'; 
+import { test, expect } from 'vitest';
 import TodoInput from './components/TodoInput';
 
 const addTodo = (text) => {

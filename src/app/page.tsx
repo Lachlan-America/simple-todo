@@ -4,7 +4,6 @@ import TodoInput from "../components/TodoInput";
 // Update the path below to the correct relative path where TodoItem and Todo are exported
 import TodoItem, { type Todo } from "../components/TodoItem";
 import TodoStats from "../components/TodoStats";
-import { getCategoryFromGPT } from "../api/categorize";
 
 export type Category = {
     name: string;
@@ -25,22 +24,37 @@ export default function Home() {
             createdAt: new Date(),
             category: null,
         };
-
+        // Add the new todo to the state and wait asynchronously for categorization
         setTodos(prev => [newTodo, ...prev]);
-
         categorizeTodo(newTodo);
     };
 
     const categorizeTodo = async (todo: Todo) => {
         try {
-            const category_name = await getCategoryFromGPT(todo.text);
-            const category = { name: category_name, selected: false };
+            const res = await fetch("/api/categorize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: todo.text }),
+            });
 
-            setCategories(prev => [...prev, category]);
-            setTodos(prev => [...prev, { ...todo, category: category_name }]);
+            const data = await res.json();
+            // Ensure the response is cleaned
+            const normalized = data.name.trim().toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase());
+            const category = { name: normalized, selected: false };
+
+            // If the category already exists, do not add it again
+            setCategories(prev => {
+                if (prev.some(cat => cat.name === category.name)) return prev;
+                return [...prev, category];
+            });
+            // Update the todo with the categorized name if it exists
+            setTodos(prev =>
+                prev.map(t =>
+                    t.id === todo.id ? { ...t, category: data.name } : t
+                )
+            );
         } catch (err) {
             console.error("Failed to categorize:", err);
-            // Optionally set a 'failed' or 'uncategorized' label
         }
     };
 
@@ -82,9 +96,7 @@ export default function Home() {
     });
 
     // Returns the filtered categories based on selected state
-    const selectedCategoryNames = categories
-        .filter((cat) => cat.selected)
-        .map((cat) => cat.name);
+    const selectedCategoryNames = categories.filter((cat) => cat.selected).map((cat) => cat.name);
 
     // Returns the todos that match the selected categories
     const visibleTodos = selectedCategoryNames.length > 0 ? sortedTodos.filter((todo) => selectedCategoryNames.includes(todo.category || "")) : sortedTodos;
@@ -113,11 +125,11 @@ export default function Home() {
                     <TodoStats todos={todos} />
 
                     {categories.length > 0 && (
-                        <div className="text-sm mb-4">
+                        <div className="flex items-center justify-center gap-4 mb-4">
                             {categories.map(category => (
-                                <button key={category.name} className="text-sm" onClick={() => changeSelectedCategory(category.name)}>
+                                <div key={category.name} className={"text-sm p-2 rounded-full" + (category.selected ? " bg-blue-500" : " bg-gray-500")} onClick={() => changeSelectedCategory(category.name)}>
                                     {category.name}
-                                </button>
+                                </div>
                             ))}
                         </div>
                     )}
