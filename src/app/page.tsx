@@ -1,18 +1,50 @@
 'use client'
-import { useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import TodoInput from "../components/TodoInput";
 // Update the path below to the correct relative path where TodoItem and Todo are exported
 import TodoItem, { type Todo } from "../components/TodoItem";
 import TodoStats from "../components/TodoStats";
+import TypingParagraph from "@/components/TypingParagraph";
 
 export type Category = {
     name: string;
     selected: boolean;
 }
 
+const LOCAL_STORAGE_KEYS = {
+    todos: "todos",
+    categories: "categories",
+    summary: "ai_summary",
+};
+
 export default function Home() {
     const [todos, setTodos] = useState<Todo[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
+    const [AISummary, setAISummary] = useState<string>("");
+
+    // === Load from localStorage on mount ===
+    useEffect(() => {
+        const storedTodos = localStorage.getItem(LOCAL_STORAGE_KEYS.todos);
+        const storedCategories = localStorage.getItem(LOCAL_STORAGE_KEYS.categories);
+        const storedSummary = localStorage.getItem(LOCAL_STORAGE_KEYS.summary);
+
+        if (storedTodos) setTodos(JSON.parse(storedTodos));
+        if (storedCategories) setCategories(JSON.parse(storedCategories));
+        if (storedSummary) setAISummary(JSON.parse(storedSummary));
+    }, []);
+
+    // === Save todos to localStorage whenever they change ===
+    useEffect(() => {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.todos, JSON.stringify(todos));
+    }, [todos]);
+
+    useEffect(() => {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.categories, JSON.stringify(categories));
+    }, [categories]);
+
+    useEffect(() => {
+        localStorage.setItem(LOCAL_STORAGE_KEYS.summary, JSON.stringify(AISummary));
+    }, [AISummary]);
 
     // Where the todo item is added
     const addTodo = (text: string) => {
@@ -58,6 +90,22 @@ export default function Home() {
         }
     };
 
+    const getAISummary = async () => {
+        try {
+            const res = await fetch("/api/summary", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ todos: todos }),
+            });
+            const data = await res.json();
+            console.log("AI Summary response:", data);
+            setAISummary(() => data.summary);
+
+        } catch (err) {
+            console.error("Failed to get AI summary:", err);
+        }
+    };
+
     const toggleTodo = (id: string) => {
         setTodos(prev =>
             prev.map(todo =>
@@ -88,18 +136,23 @@ export default function Home() {
         });
     };
 
-    // Sort todos: incomplete first, completed last
-    const sortedTodos = [...todos].sort((a, b) => {
-        if (a.completed && !b.completed) return 1;
-        if (!a.completed && b.completed) return -1;
-        return 0;
-    });
+    const sortedTodos = useMemo(() => {
+        return [...todos].sort((a, b) => {
+            if (a.completed && !b.completed) return 1;
+            if (!a.completed && b.completed) return -1;
+            return 0;
+        });
+    }, [todos]);
 
-    // Returns the filtered categories based on selected state
-    const selectedCategoryNames = categories.filter((cat) => cat.selected).map((cat) => cat.name);
+    const selectedCategoryNames = useMemo(() => {
+        return categories.filter((cat) => cat.selected).map((cat) => cat.name);
+    }, [categories]);
 
-    // Returns the todos that match the selected categories
-    const visibleTodos = selectedCategoryNames.length > 0 ? sortedTodos.filter((todo) => selectedCategoryNames.includes(todo.category || "")) : sortedTodos;
+    const visibleTodos = useMemo(() => {
+        return selectedCategoryNames.length > 0
+            ? sortedTodos.filter((todo) => selectedCategoryNames.includes(todo.category || ""))
+            : sortedTodos;
+    }, [sortedTodos, selectedCategoryNames]);
 
     function changeSelectedCategory(name: string): void {
         setCategories(prev =>
@@ -118,9 +171,19 @@ export default function Home() {
                         Stay organized and get things done
                     </p>
                 </div>
-
                 <div className="space-y-4">
                     <TodoInput onAdd={addTodo} />
+
+                    <div className="flex flex-col gap-4 items-center justify-between w-full">
+                        {AISummary && <TypingParagraph text={AISummary} />}
+                        <button
+                            onClick={getAISummary}
+                            disabled={todos.length === 0}
+                            className="bg-gradient-primary hover:shadow-glow transition-all duration-200 h-10 px-4
+                                hover:border hover:border-white focus:border-white active:border-white border border-transparent rounded-xl bg-[#232223]">
+                            Generate AI Summary
+                        </button>
+                    </div>
 
                     <TodoStats todos={todos} />
 
