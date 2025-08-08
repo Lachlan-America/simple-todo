@@ -9,7 +9,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
+    async session({ session }) {
       return session;
     },
   },
