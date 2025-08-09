@@ -1,4 +1,3 @@
-import { Console } from "console";
 import { Category } from "./useCategories";
 import { useEffect, useMemo, useState } from "react";
 
@@ -10,8 +9,7 @@ export interface Todo {
     category: string | null;
 }
 
-export function useTodos(setTodos: React.Dispatch<React.SetStateAction<Todo[]>>,
-    setCategories: React.Dispatch<React.SetStateAction<Category[]>>,
+export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<Todo[]>>,
     setAISummary: React.Dispatch<React.SetStateAction<string>>,
     todos: Todo[],
     selectedCategoryNames: string[]
@@ -40,70 +38,6 @@ export function useTodos(setTodos: React.Dispatch<React.SetStateAction<Todo[]>>,
             console.error("Failed to get AI summary:", err);
         }
     };
-    const categorizeTodo = async (todo: Todo) => {
-        try {
-            const res = await fetch("/api/categorize", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: todo.text }),
-                credentials: "include",
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${data?.error || "Unknown error"}`);
-            }
-
-            // Update categories
-            setCategories((prev) =>
-                prev.some((cat) => cat.name === data.name) ? prev : [...prev, data]
-            );
-
-            return data;
-        } catch (err) {
-            console.error("Failed to categorize:", err);
-            return null;
-        }
-    };
-
-    const addTodo = (text: string) => {
-        const newTodo: Todo = {
-            id: crypto.randomUUID(),
-            text,
-            completed: false,
-            createdAt: new Date(),
-            category: null,
-        };
-
-        setTodos((prev) => [newTodo, ...prev]);
-        setLastAddedId(newTodo.id); // <-- trigger useEffect to run categorize
-    };
-
-    // Watch for changes in `lastAddedId`
-    useEffect(() => {
-        if (!lastAddedId) return;
-
-        const todo = todos.find((t) => t.id === lastAddedId && t.category === null);
-        if (!todo) return;
-
-        const runCategorization = async () => {
-            try {
-                const category = await categorizeTodo(todo);
-                if (category) {
-                    setTodos((prev) =>
-                        prev.map((t) =>
-                            t.id === todo.id ? { ...t, category: category.name } : t
-                        )
-                    );
-                }
-            } catch (err) {
-                console.error("Categorization failed", err);
-            }
-        };
-
-        runCategorization();
-    }, [lastAddedId, todos]); // Trigger when either changes
     
     const deleteTodo = (id: string) => {
         setTodos((prev: Todo[]) => prev.filter((todo) => todo.id !== id));
@@ -144,7 +78,6 @@ export function useTodos(setTodos: React.Dispatch<React.SetStateAction<Todo[]>>,
     }, [sortedTodos, selectedCategoryNames]);
 
     return {
-        addTodo,
         deleteTodo,
         toggleTodo,
         reorderTodos,

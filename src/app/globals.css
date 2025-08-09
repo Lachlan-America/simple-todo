@@ -12,19 +12,35 @@ body {
 }
 
 @keyframes typing {
-  from { width: 0 }
-  to { width: 100% }
+  from {
+    width: 0
+  }
+
+  to {
+    width: 100%
+  }
 }
 
 @keyframes blinkCaret {
-  0%, 100% { border-color: transparent; }
-  50% { border-color: white; }
+
+  0%,
+  100% {
+    border-color: transparent;
+  }
+
+  50% {
+    border-color: white;
+  }
 }
 
 .typing {
-  white-space: nowrap;          /* Prevent line break */
-  overflow: hidden;             /* Hide overflowing text */
-  border-right: 2px solid white;/* Cursor */
+  white-space: nowrap;
+  /* Prevent line break */
+  overflow: hidden;
+  /* Hide overflowing text */
+  border-right: 2px solid white;
+  /* Cursor */
   animation: typing 3s steps(30, end), blinkCaret 1.5s step-end infinite;
-  width: 0;                    /* Start width at 0, animates to 100% */
+  width: 0;
+  /* Start width at 0, animates to 100% */
 }

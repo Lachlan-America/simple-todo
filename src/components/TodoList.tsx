@@ -1,12 +1,13 @@
 'use client'
 import useLocalStorage from "@/hooks/useLocalStorage";
 import { useCategories, type Category } from "@/hooks/useCategories";
-import { Todo, useTodos } from "@/hooks/useTodos";
+import useTodos, { Todo } from "@/hooks/useTodos";
 import TodoInput from "./TodoInput";
 import TodoStats from "./TodoStats";
 import TypingParagraph from "./TypingParagraph";
 import TodoItem from "./TodoItem";
 import AuthButton from "./AuthButton";
+import useTodoCategorizer from "@/hooks/useTodoCategorizer";
 
 
 const LOCAL_STORAGE_KEYS = {
@@ -22,10 +23,9 @@ export default function TodoList() {
     const [AISummary, setAISummary] = useLocalStorage<string>(LOCAL_STORAGE_KEYS.summary, "");
 
     const { selectedCategoryNames, changeSelectedCategory } = useCategories(categories, setCategories);
-
-    const { addTodo, deleteTodo, toggleTodo, reorderTodos, getAISummary, visibleTodos } = useTodos(
+    const { addTodo } = useTodoCategorizer(setTodos, setCategories);
+    const { deleteTodo, toggleTodo, reorderTodos, getAISummary, visibleTodos } = useTodos(
         setTodos,
-        setCategories,
         setAISummary,
         todos,
         selectedCategoryNames

@@ -4,7 +4,6 @@ import type { Category } from "@/hooks/useCategories";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
-
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
@@ -13,18 +12,22 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  * @returns category object, or throws on error
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Category | { error: string }>) {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "Missing text" });
+
+    // Ensure data is in correct form
+    const { todo } = req.body;
+    if (!todo || todo.text.length <= 0 ) {
+        return res.status(400).json({ error: "Missing todo" });
+    }
     // Ensure authentication
     const session = await getServerSession(req, res, authOptions);   
     if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+    
     try {
         const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [{
                 role: "user",
-                content: `Categorize the following todo: "${text}" as Work, Health, etc. Respond as JSON: { "name": "Work" }`
+                content: `Categorize the following todo: "${todo.text}" as Work, Health, etc. Respond as JSON: { "name": "Work" }`
             }],
             temperature: 0.3,
         });
