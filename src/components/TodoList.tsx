@@ -7,8 +7,6 @@ import TodoStats from "./TodoStats";
 import TypingParagraph from "./TypingParagraph";
 import TodoItem from "./TodoItem";
 import AuthButton from "./AuthButton";
-import useTodoCategorizer from "@/hooks/useTodoCategorizer";
-
 
 const LOCAL_STORAGE_KEYS = {
     todos: "todos",
@@ -22,14 +20,8 @@ export default function TodoList() {
     const [categories, setCategories] = useLocalStorage<Category[]>(LOCAL_STORAGE_KEYS.categories, []);
     const [AISummary, setAISummary] = useLocalStorage<string>(LOCAL_STORAGE_KEYS.summary, "");
 
-    const { selectedCategoryNames, changeSelectedCategory } = useCategories(categories, setCategories);
-    const { addTodo } = useTodoCategorizer(setTodos, setCategories);
-    const { deleteTodo, toggleTodo, reorderTodos, getAISummary, visibleTodos } = useTodos(
-        setTodos,
-        setAISummary,
-        todos,
-        selectedCategoryNames
-    );
+    const { selectedCategoryNames, changeSelectedCategory } = useCategories(todos, categories, setCategories, setTodos);
+    const { addTodo, deleteTodo, toggleTodo, reorderTodos, getAISummary, visibleTodos, errorMessage } = useTodos(setTodos, setCategories, setAISummary, todos, selectedCategoryNames);
 
     return (
         <div>
@@ -37,6 +29,7 @@ export default function TodoList() {
 
             <div className="mt-4 flex flex-col gap-4 items-center justify-between w-full">
                 {AISummary && <TypingParagraph text={AISummary} />}
+                {errorMessage && <p className="text-red-500 bold">{errorMessage}</p>}
                 <div className="flex flex-row gap-4 items-center"> 
                     <AuthButton />
                     <button

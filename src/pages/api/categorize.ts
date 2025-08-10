@@ -3,6 +3,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Category } from "@/hooks/useCategories";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { Todo } from "@/hooks/useTodos";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -11,31 +12,42 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  * @param text - The todo item to categorize.
  * @returns category object, or throws on error
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Category | { error: string }>) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse<{ categories: { id: string; name: string }[] } | { error: string }>) {
 
     // Ensure data is in correct form
-    const { todo } = req.body;
-    if (!todo || todo.text.length <= 0 ) {
-        return res.status(400).json({ error: "Missing todo" });
-    }
+    const { todos } = req.body;
+    if (!todos || !Array.isArray(todos)) return res.status(400).json({ error: "Missing or invalid todos" });
+
     // Ensure authentication
-    const session = await getServerSession(req, res, authOptions);   
-    if (!session) return res.status(401).json({ error: "Unauthorized" });
+	const session = await getServerSession(req, res, authOptions);
+	if (!session) return res.status(401).json({ error: "Unauthorized. To use the AI features, please sign in" });
     
     try {
+        const todoTexts = todos.map(t => ({ id: t.id, text: t.text }));
+
+        const prompt = `
+        You will receive a list of todos with IDs and text.
+        Categorize each todo into a category like Work, Health, Personal, etc.
+        Return JSON in this exact format:
+
+        [
+        { "id": "TODO_ID", "name": "CATEGORY_NAME" }
+        ]
+
+        IDs must match exactly the IDs provided.
+
+        Todos:
+        ${JSON.stringify(todoTexts, null, 2)}
+        `;
+
         const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
-            messages: [{
-                role: "user",
-                content: `Categorize the following todo: "${todo.text}" as Work, Health, etc. Respond as JSON: { "name": "Work" }`
-            }],
+            messages: [{ role: "user", content: prompt }],
             temperature: 0.3,
         });
 
-        const parsed = JSON.parse(completion.choices[0]?.message?.content ?? "{}");
-        const name = parsed.name ? parsed.name.trim().toLowerCase().replace(/^\w/, (c: string) => c.toUpperCase()) : "Uncategorized";
-        console.log("AI Categorization response:", name);
-        res.status(200).json({ name, selected: false });
+        const parsed: { id: string; name: string }[] = JSON.parse(completion.choices[0]?.message?.content || "[]");
+        res.status(200).json({ categories: parsed });
 
     } catch (error) {
         console.error(error);

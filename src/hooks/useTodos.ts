@@ -1,3 +1,4 @@
+import { useUserKeys } from "@/context/UserKeysContext";
 import { Category } from "./useCategories";
 import { useEffect, useMemo, useState } from "react";
 
@@ -10,11 +11,13 @@ export interface Todo {
 }
 
 export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<Todo[]>>,
+    setCategories: React.Dispatch<React.SetStateAction<Category[]>>,
     setAISummary: React.Dispatch<React.SetStateAction<string>>,
     todos: Todo[],
     selectedCategoryNames: string[]
 ) {
-    const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>("");
+
     // state, add, toggle, delete, reorder
     // sync with localStorage
 
@@ -29,9 +32,10 @@ export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<T
             const data = await res.json();
 
             if (!res.ok) {
-                throw new Error(`HTTP ${res.status}: ${data?.error || "Unknown error"}`);
+                setErrorMessage(data.error); // show in UI
+                return;
             }
-
+            setErrorMessage(""); // Reset UI
             console.log("AI Summary response:", data);
             setAISummary(() => data.summary);
         } catch (err) {
@@ -39,8 +43,34 @@ export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<T
         }
     };
     
+    const addTodo = (text: string) => {
+        const newTodo: Todo = {
+            id: crypto.randomUUID(),
+            text,
+            completed: false,
+            createdAt: new Date(),
+            category: null,
+        };
+        setTodos(prev => [newTodo, ...prev]);
+    };
     const deleteTodo = (id: string) => {
-        setTodos((prev: Todo[]) => prev.filter((todo) => todo.id !== id));
+        setTodos(prevTodos => {
+            const updatedTodos = prevTodos.filter(todo => todo.id !== id);
+
+            // Find categories still used by any todo
+            const usedCategories = new Set(
+            updatedTodos
+                .map(todo => todo.category)
+                .filter((cat): cat is string => !!cat) // filter out null/undefined
+            );
+
+            // Update categories: keep only those used
+            setCategories(prevCategories =>
+                prevCategories.filter(cat => usedCategories.has(cat.name))
+            );
+
+            return updatedTodos;
+        });
     };
     const toggleTodo = (id: string) => {
         setTodos((prev: Todo[]) =>
@@ -78,10 +108,12 @@ export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<T
     }, [sortedTodos, selectedCategoryNames]);
 
     return {
+        addTodo,
         deleteTodo,
         toggleTodo,
         reorderTodos,
         getAISummary,
-        visibleTodos
+        visibleTodos,
+        errorMessage,
     };
 }

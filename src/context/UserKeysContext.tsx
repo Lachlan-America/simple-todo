@@ -9,6 +9,7 @@ type UserKeysContextType = {
     rateLimitKey?: string;
     todoCategoriseKey?: string;
     aiSummaryKey?: string;
+    error?: string;
 };
 const UserKeysContext = createContext<UserKeysContextType>({});
 

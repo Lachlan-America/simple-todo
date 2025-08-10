@@ -3,6 +3,8 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { Todo } from "@/hooks/useTodos";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { getUserHash } from "@/lib/utils";
+import { summaryLimiter } from "@/lib/rateLimiter";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -15,10 +17,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 	// Define the request body and handle any missing or invalid todos
 	const { todos }: { todos: Todo[] } = req.body;
 	if (!todos || !Array.isArray(todos)) return res.status(400).json({ error: "Missing or invalid todos" });
+
 	// Ensure authentication
 	const session = await getServerSession(req, res, authOptions);
-	if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+	if (!session) return res.status(401).json({ error: "Unauthorized. To use the AI features, please sign in" });
+	
+	// Check rate limit
+	const userHash = getUserHash(session.user?.email ?? "default");
+	const { success, reset } = await summaryLimiter.limit(`${userHash}:summary`);
+	if (!success) {
+		const retryAfterMs = reset - Date.now();
+		const retryAfterSec = Math.ceil(retryAfterMs / 1000);
+		res.status(429).json({ error: `Too many requests. Try again in ${retryAfterSec}s` });
+	}
+	
 	try {
 		const prompt = `Here is a list of todo items. Some are completed, some are not.
 
