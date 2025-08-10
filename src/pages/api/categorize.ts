@@ -1,9 +1,9 @@
 import { OpenAI } from "openai";
 import { NextApiRequest, NextApiResponse } from "next";
-import type { Category } from "@/hooks/useCategories";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { Todo } from "@/hooks/useTodos";
+import { getUserHash } from "@/lib/utils";
+import { todoLimiter } from "@/lib/rateLimiter";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -21,6 +21,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     // Ensure authentication
 	const session = await getServerSession(req, res, authOptions);
 	if (!session) return res.status(401).json({ error: "Unauthorized. To use the AI features, please sign in" });
+
+    // Check rate limit
+    const userHash = getUserHash(session.user?.email ?? "default");
+    const { success, reset } = await todoLimiter.limit(`${userHash}:categorise`);
+    if (!success) {
+        const retryAfterMs = reset - Date.now();
+        const retryAfterSec = Math.ceil(retryAfterMs / 1000);
+        res.status(429).json({ error: `Too many requests. Try again in ${retryAfterSec}s` });
+    }
     
     try {
         const todoTexts = todos.map(t => ({ id: t.id, text: t.text }));

@@ -1,6 +1,5 @@
-import { useUserKeys } from "@/context/UserKeysContext";
 import { Category } from "./useCategories";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 export interface Todo {
     id: string;
@@ -29,15 +28,19 @@ export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<T
                 body: JSON.stringify({ todos: todos }),
                 credentials: "include",
             });
+
             const data = await res.json();
 
             if (!res.ok) {
-                setErrorMessage(data.error); // show in UI
+                // Show error message underneath
+                setErrorMessage(data.error);
                 return;
             }
-            setErrorMessage(""); // Reset UI
-            console.log("AI Summary response:", data);
+
+            // Reset error message if there was one previously
+            setErrorMessage(""); 
             setAISummary(() => data.summary);
+
         } catch (err) {
             console.error("Failed to get AI summary:", err);
         }
@@ -102,7 +105,6 @@ export default function useTodos(setTodos: React.Dispatch<React.SetStateAction<T
             return 0;
         });
     }, [todos]);
-
     const visibleTodos = useMemo(() => {
         return selectedCategoryNames.length > 0 ? sortedTodos.filter((todo) => selectedCategoryNames.includes(todo.category || "")) : sortedTodos;
     }, [sortedTodos, selectedCategoryNames]);

@@ -1,12 +1,13 @@
 'use client'
-import useLocalStorage from "@/hooks/useLocalStorage";
 import { useCategories, type Category } from "@/hooks/useCategories";
+import useLocalStorage from "@/hooks/useLocalStorage";
 import useTodos, { Todo } from "@/hooks/useTodos";
 import TodoInput from "./TodoInput";
 import TodoStats from "./TodoStats";
 import TypingParagraph from "./TypingParagraph";
 import TodoItem from "./TodoItem";
 import AuthButton from "./AuthButton";
+import { Loader2 } from "lucide-react";
 
 const LOCAL_STORAGE_KEYS = {
     todos: "todos",
@@ -20,7 +21,7 @@ export default function TodoList() {
     const [categories, setCategories] = useLocalStorage<Category[]>(LOCAL_STORAGE_KEYS.categories, []);
     const [AISummary, setAISummary] = useLocalStorage<string>(LOCAL_STORAGE_KEYS.summary, "");
 
-    const { selectedCategoryNames, changeSelectedCategory } = useCategories(todos, categories, setCategories, setTodos);
+    const { selectedCategoryNames, changeSelectedCategory, isLoading } = useCategories(todos, categories, setCategories, setTodos);
     const { addTodo, deleteTodo, toggleTodo, reorderTodos, getAISummary, visibleTodos, errorMessage } = useTodos(setTodos, setCategories, setAISummary, todos, selectedCategoryNames);
 
     return (
@@ -45,19 +46,26 @@ export default function TodoList() {
             <hr className="mt-8 mb-4 border-t border-gray-300" />
             <TodoStats todos={todos} />
             <hr className="my-4 border-t border-gray-300" />
+            
+            {categories.length === 0 && isLoading && (
+            <div className="flex justify-center mb-8">
+                <Loader2 className="animate-spin" />
+            </div>
+            )}
             {categories.length > 0 && (
                 <div className="flex items-center justify-center gap-4 mb-8">
                     {categories.map(category => (
-                        <div
-                            key={category.name}
-                            className={`text-sm p-2 rounded-full ${category.selected ? "bg-blue-500" : "bg-gray-500"}`}
-                            onClick={() => changeSelectedCategory(category.name)}
-                        >
-                            {category.name}
-                        </div>
+                    <div
+                        key={category.name}
+                        className={`text-sm p-2 rounded-full ${category.selected ? "bg-blue-500" : "bg-gray-500"}`}
+                        onClick={() => changeSelectedCategory(category.name)}
+                    >
+                        {category.name}
+                    </div>
                     ))}
+                    {isLoading && <Loader2 className="animate-spin ml-2" />}
                 </div>
-            )}
+                )}
 
             <div className="space-y-3">
                 {visibleTodos.map((todo, index) => (

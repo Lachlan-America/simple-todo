@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Todo } from "./useTodos";
 
 export type Category = {
@@ -12,15 +12,22 @@ export function useCategories(
     setCategories: React.Dispatch<React.SetStateAction<Category[]>>, 
     setTodos: React.Dispatch<React.SetStateAction<Todo[]>>) {
 
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const debounceTime = 5000; // 5 seconds
+
     // Dependency is related to a change in todos, but only categorizes them if there are uncategorized todos (prevents infinite loop)
     useEffect(() => {
-        const uncategorized = todos.filter((todo) => !todo.category || todo.category.length === 0);
+        const uncategorized = todos.filter(todo => !todo.category || todo.category.length === 0);
         if (uncategorized.length === 0) return;
+        setIsLoading(true);
+        const handler = setTimeout(() => {
+            categorizeTodos(uncategorized);
+        }, debounceTime);
 
-        categorizeTodos(uncategorized);
+        return () => clearTimeout(handler); // reset timer if todos changes before debounceTime
     }, [todos]);
 
-    const categorizeTodos = async (uncategorizedTodos: Todo[]) => {
+    const categorizeTodos = async (uncategorizedTodos: Todo[], retryCount = 0) => {
         try {
             // Categorizes many-to-many to reduce token overhead
             const res = await fetch("/api/categorize", {
@@ -37,6 +44,13 @@ export function useCategories(
 
             const data: {categories: { id: string; name: string }[]} = await res.json();
 
+            if (res.status === 429) { // rate limit error
+                if (retryCount >= 5) throw new Error("Max retries reached");
+
+                const retryAfter = 10_000; // 10 seconds, or get from response header if available
+                await new Promise((resolve) => setTimeout(resolve, retryAfter));
+                return categorizeTodos(uncategorizedTodos, retryCount + 1); // retry recursively
+            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
             // Unpack the data
@@ -52,8 +66,15 @@ export function useCategories(
             );
 
             // Specify a new categories variable using the Category interface (easier to write the following mapping)
-            const newCats = results.map((r: { id: string; name: string }) => ({ name: r.name, selected: false }));
-
+            // Remove duplicates in newCats itself by name
+            const uniqueNewCatsMap = new Map<string, Category>();
+            for (const r of results) {
+                if (!uniqueNewCatsMap.has(r.name)) {
+                    uniqueNewCatsMap.set(r.name, { name: r.name, selected: false });
+                }
+            }
+            const newCats = Array.from(uniqueNewCatsMap.values());
+            setIsLoading(false);
             // Only adds unique categories not currently a part of the set
             setCategories((prev) => {
                 // Yield unique names only
@@ -82,5 +103,6 @@ export function useCategories(
     return {
         changeSelectedCategory,
         selectedCategoryNames,
+        isLoading
     };
 }
